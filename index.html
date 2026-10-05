@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="fr" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Caisse — Institut Ahsen Bouderbala</title>
+
+<!-- PWA iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Caisse">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Gestion financière — Institut Ahsen Bouderbala">
+
+<!-- PWA Manifest -->
+<link rel="manifest" id="manifestLink">
+
+<!-- Icône écran d'accueil iOS (PNG) -->
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAACPUlEQVR4nO3dwU0DMRRAQYK4bx80Ry1pLn3QAQckTjyhbCIbyzP32Jby5OzlZy/HcbzAb15nH4D/SxwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDeZh9gO5+364lPHe8fTz/Jny7+MG6kc2X8GJyIn5VxHizjKSvcRRyDPOt7HdmHOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIO04Zb/QnPtc290cp2dNP2/XwXPM0+0Vx3Jz7nNtFMeKc+5zbRQH9xIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQZozSG2UeQkTbg6jzKsYHYdR5oUMjcMo81o8kJLEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRIHSRwkcZDEQRoax7Nee3BunZ13P8fNQRodx+PhP7LCzrufcDmOY+R+3+a+jGfn3e8yJw6W4JmDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA6SOEjiIImDJA7SFybsSS+TpU8sAAAAAElFTkSuQmCC">
+
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #2e2e2e;
+    --accent: #00e5a0;
+    --text: #f0f0f0;
+    --text2: #888;
+    --plus: #00e5a0;
+    --minus: #ff4d6d;
+    --radius: 12px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 calc(100px + var(--safe-bottom)) 0;
+    overscroll-behavior: none;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: calc(18px + var(--safe-top)) 16px 14px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1px;
+    flex: 1;
+  }
+
+  .solde-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .solde-label {
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .btn-reset {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+    white-space: nowrap;
+  }
+
+  .btn-export {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .form-section {
+    padding: 16px;
+    background: var(--surface);
+    margin: 12px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  .form-title {
+    font-size: 12px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .form-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  label { font-size: 11px; color: var(--text2); letter-spacing: 0.5px; }
+
+  input, select, textarea {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 16px; /* 16px prevents iOS zoom */
+    font-family: 'IBM Plex Sans', sans-serif;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: none; height: 60px; }
+
+  .type-toggle { display: flex; gap: 8px; margin-bottom: 10px; }
+
+  .type-btn {
+    flex: 1;
+    padding: 12px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .type-btn.plus.active { background: rgba(0,229,160,0.15); border-color: var(--plus); color: var(--plus); }
+  .type-btn.minus.active { background: rgba(255,77,109,0.15); border-color: var(--minus); color: var(--minus); }
+
+  .btn-add {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+    margin-top: 4px;
+    transition: opacity 0.2s;
+  }
+  .btn-add:active { opacity: 0.8; }
+
+  .solde-init-section {
+    padding: 14px 16px;
+    background: var(--surface);
+    margin: 0 16px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .solde-init-section label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .solde-init-section input { flex: 1; }
+
+  .btn-set {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .stats-row { display: flex; gap: 10px; margin: 0 16px 12px; }
+
+  .stat-card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+
+  .stat-label { font-size: 10px; color: var(--text2); letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px; }
+  .stat-value { font-family: 'IBM Plex Mono', monospace; font-size: 15px; font-weight: 600; }
+  .stat-value.plus { color: var(--plus); }
+  .stat-value.minus { color: var(--minus); }
+
+  .table-section { margin: 0 16px; }
+
+  .table-title {
+    font-size: 11px;
+    color: var(--text2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 660px; }
+
+  thead { background: var(--surface); border-bottom: 1px solid var(--border); }
+
+  th {
+    padding: 10px;
+    text-align: left;
+    color: var(--text2);
+    font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+  .num-cell { font-family: 'IBM Plex Mono', monospace; color: var(--text2); font-size: 11px; }
+  .montant-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 600; white-space: nowrap; }
+  .montant-cell.plus { color: var(--plus); }
+  .montant-cell.minus { color: var(--minus); }
+  .solde-cell { font-family: 'IBM Plex Mono', monospace; font-weight: 600; white-space: nowrap; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .badge.credit { background: rgba(0,229,160,0.12); color: var(--plus); }
+  .badge.debit { background: rgba(255,77,109,0.12); color: var(--minus); }
+
+  .justif-cell { color: var(--text2); font-size: 11px; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .btn-del { background: transparent; border: none; color: var(--text2); cursor: pointer; padding: 4px; font-size: 14px; }
+
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text2); font-size: 13px; }
+
+  /* PWA install banner */
+  .install-banner {
+    display: none;
+    margin: 0 16px 12px;
+    padding: 12px 16px;
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.3);
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+  .install-banner strong { color: var(--accent); }
+  .install-banner.show { display: block; }
+
+  /* ── Pièces justificatives ── */
+  .pieces-actions { display: flex; gap: 8px; margin-bottom: 8px; }
+  .btn-piece {
+    flex: 1;
+    padding: 11px 8px;
+    background: var(--surface2);
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+  .btn-piece { display: block; text-align: center; }
+  .btn-piece:active { opacity: 0.7; }
+  .file-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
+  label.btn-addpiece { display: inline-block; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .thumb { position: relative; width: 64px; height: 64px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+  .thumb .rm {
+    position: absolute; top: -6px; right: -6px;
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--minus); color: #fff; border: none;
+    font-size: 12px; line-height: 20px; text-align: center; cursor: pointer; padding: 0;
+  }
+  .pieces-cell { white-space: nowrap; }
+  .btn-pieces {
+    background: rgba(0,229,160,0.12);
+    border: 1px solid rgba(0,229,160,0.4);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .btn-addpiece {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text2);
+    border-radius: 6px;
+    padding: 4px 7px;
+    font-size: 11px;
+    cursor: pointer;
+    margin-left: 4px;
+  }
+
+  .viewer {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.94);
+    z-index: 1000;
+    flex-direction: column;
+    padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+  }
+  .viewer.show { display: flex; }
+  .viewer-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; color: var(--text2); font-size: 13px; }
+  .viewer-close {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+  }
+  .viewer-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; -webkit-overflow-scrolling: touch; }
+  .viewer-item img { width: 100%; border-radius: 10px; display: block; }
+  .viewer-item .viewer-tools { display: flex; gap: 8px; margin-top: 6px; }
+  .viewer-item .viewer-tools button, .viewer-item .viewer-tools a {
+    flex: 1; text-align: center; text-decoration: none;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text2);
+    border-radius: 8px; padding: 8px; font-size: 12px; cursor: pointer;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+  .viewer-item .viewer-tools button.danger { color: var(--minus); border-color: rgba(255,77,109,0.4); }
+
+  .toast {
+    position: fixed;
+    bottom: calc(20px + var(--safe-bottom));
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: #000;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 999;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="jsWarn" style="position:relative;z-index:2000;background:#ff4d6d;color:#fff;font:14px/1.6 sans-serif;padding:14px 16px;text-align:center">
+  ⚠ <strong>JavaScript ne fonctionne pas dans cet affichage.</strong><br>
+  Les boutons ne feront rien. Ouvrez cette page dans <strong>Safari</strong> via un lien <strong>https</strong> (pas depuis Fichiers, WhatsApp ou un aperçu).<br>
+  <span dir="rtl">⚠ الصفحة لا تعمل هنا: افتحها في Safari عبر رابط https، وليس من تطبيق الملفات أو واتساب.</span>
+</div>
+<script>document.getElementById('jsWarn').style.display = 'none';</script>
+<div id="errBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:2000;background:#ff4d6d;color:#fff;font:12px/1.4 sans-serif;padding:8px 12px;white-space:pre-wrap"></div>
+<script>
+  window.addEventListener('error', function (e) {
+    var b = document.getElementById('errBar');
+    b.style.display = 'block';
+    b.textContent += 'Erreur: ' + (e.message || 'inconnue') + (e.lineno ? ' (ligne ' + e.lineno + ')' : '') + '\n';
+  });
+  window.addEventListener('unhandledrejection', function (e) {
+    var b = document.getElementById('errBar');
+    b.style.display = 'block';
+    b.textContent += 'Erreur: ' + (e.reason && e.reason.message ? e.reason.message : e.reason) + '\n';
+  });
+</script>
+
+<header>
+  <div class="header-top">
+    <h1>📊 CAISSE</h1>
+    <button class="btn-export" onclick="exportExcel()">📥 Excel</button>
+    <button class="btn-reset" onclick="resetAll()">🗑 Reset</button>
+  </div>
+  <div class="solde-label">Solde actuel</div>
+  <div class="solde-display" id="soldeDisplay">0,00 DA</div>
+</header>
+
+<!-- iOS install hint -->
+<div class="install-banner" id="installBanner">
+  📱 <strong>Installer comme application :</strong> Appuyez sur <strong>⎋ Partager</strong> puis <strong>"Sur l'écran d'accueil"</strong>.<br>⚠ Installez d'abord, puis saisissez vos données : Safari et l'app installée ne partagent pas leurs données.
+</div>
+
+<!-- Solde initial -->
+<div class="solde-init-section">
+  <label>Solde initial</label>
+  <input type="number" id="soldeInitInput" placeholder="Montant..." step="0.01" inputmode="decimal">
+  <button class="btn-set" onclick="setSoldeInitial()">Définir</button>
+</div>
+
+<!-- Sauvegarde / restauration -->
+<div class="solde-init-section" style="gap:8px">
+  <button class="btn-set" style="flex:1" onclick="exportBackup()">💾 Sauvegarde</button>
+  <label for="restoreInput" class="btn-set" style="flex:1;text-align:center">📂 Restaurer</label>
+  <input type="file" id="restoreInput" accept=".json,application/json" class="file-hidden" onchange="importBackup(this)">
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-label">Entrées</div>
+    <div class="stat-value plus" id="totalPlus">0,00</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Sorties</div>
+    <div class="stat-value minus" id="totalMinus">0,00</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Opérations</div>
+    <div class="stat-value" id="totalOps">0</div>
+  </div>
+</div>
+
+<!-- Formulaire -->
+<div class="form-section">
+  <div class="form-title">Nouvelle opération</div>
+  <div class="type-toggle">
+    <button class="type-btn plus active" id="btnPlus" onclick="setType('plus')">＋ Crédit</button>
+    <button class="type-btn minus" id="btnMinus" onclick="setType('minus')">－ Débit</button>
+  </div>
+  <div class="form-row">
+    <div class="form-group">
+      <label>Montant (DA)</label>
+      <input type="number" id="montantInput" placeholder="0,00" step="0.01" min="0" inputmode="decimal">
+    </div>
+    <div class="form-group">
+      <label>Opération</label>
+      <input type="text" id="operationInput" placeholder="Ex: Fournitures">
+    </div>
+  </div>
+  <div class="form-group" style="margin-bottom:10px;">
+    <label>Justification</label>
+    <textarea id="justifInput" placeholder="Référence, détails..."></textarea>
+  </div>
+  <div class="form-group" style="margin-bottom:10px;">
+    <label>Pièces justificatives (photos)</label>
+    <div class="pieces-actions">
+      <label for="camInput" class="btn-piece">📷 Prendre une photo</label>
+      <label for="galInput" class="btn-piece">🖼 Galerie</label>
+    </div>
+    <div class="thumbs" id="pendingThumbs"></div>
+  </div>
+  <input type="file" id="camInput" accept="image/*" capture="environment" class="file-hidden" onchange="onPickPieces(this)">
+  <input type="file" id="galInput" accept="image/*" multiple class="file-hidden" onchange="onPickPieces(this)">
+  <input type="file" id="addInput" accept="image/*" multiple class="file-hidden" onchange="onAddToOperation(this)">
+  <button class="btn-add" onclick="addOperation()">Ajouter l'opération</button>
+</div>
+
+<!-- Visionneuse des pièces -->
+<div class="viewer" id="viewer">
+  <div class="viewer-top">
+    <span id="viewerTitle">Pièces justificatives</span>
+    <button class="viewer-close" onclick="closeViewer()">✕ Fermer</button>
+  </div>
+  <div class="viewer-body" id="viewerBody"></div>
+</div>
+
+<!-- Tableau -->
+<div class="table-section">
+  <div class="table-title">Historique</div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>N°</th>
+          <th>Date & Heure</th>
+          <th>Solde Avant</th>
+          <th>Opération</th>
+          <th>Montant</th>
+          <th>Justification</th>
+          <th>Pièces</th>
+          <th>Nouveau Solde</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="8"><div class="empty-state">Aucune opération enregistrée</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Data ──────────────────────────────────────────────
+  let storageOK = true;
+  let data = null;
+  try { data = JSON.parse(localStorage.getItem('caisse_data') || 'null'); }
+  catch (e) { storageOK = false; }
+  if (!data) data = { soldeInitial: 0, operations: [] };
+  let currentType = 'plus';
+
+  function save() {
+    try { localStorage.setItem('caisse_data', JSON.stringify(data)); }
+    catch (e) { storageOK = false; }
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  // ── Pièces justificatives (IndexedDB) ─────────────────
+  const STORE = 'pieces';
+  const dbPromise = new Promise((resolve, reject) => {
+    if (!window.indexedDB) { reject(new Error('IndexedDB indisponible')); return; }
+    const req = indexedDB.open('caisse_pieces', 1);
+    req.onupgradeneeded = () => {
+      const st = req.result.createObjectStore(STORE, { keyPath: 'id' });
+      st.createIndex('opId', 'opId');
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+
+  dbPromise.catch(() => {});
+
+  function idb(mode, fn) {
+    return dbPromise.then(db => new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE, mode);
+      const st = tx.objectStore(STORE);
+      let result;
+      fn(st, r => result = r);
+      tx.oncomplete = () => resolve(result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    }));
+  }
+
+  // Si IndexedDB est indisponible (ex. fichier ouvert hors navigateur), on garde les photos en mémoire
+  const memPieces = new Map();
+  const putPiece = p => idb('readwrite', st => st.put(p)).catch(() => { memPieces.set(p.id, p); });
+  const getPieces = opId => idb('readonly', (st, set) => {
+    const r = st.index('opId').getAll(opId);
+    r.onsuccess = () => set(r.result);
+  }).catch(() => []).then(list => list.concat([...memPieces.values()].filter(p => p.opId === opId)).sort((a, b) => a.id - b.id));
+  const deletePiece = id => { memPieces.delete(id); return idb('readwrite', st => st.delete(id)).catch(() => {}); };
+  const deletePieces = opId => getPieces(opId).then(list => Promise.all(list.map(p => deletePiece(p.id))));
+  const clearPieces = () => { memPieces.clear(); return idb('readwrite', st => st.clear()).catch(() => {}); };
+
+  // Réduit la photo (max 1280 px, JPEG 72 %) pour économiser l'espace
+  function compressImage(file, maxDim = 1280, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * s);
+        c.height = Math.round(img.height * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Image illisible')); };
+      img.src = url;
+    });
+  }
+
+  let pending = []; // pièces choisies avant validation de l'opération
+  let pieceSeq = 0;
+  const newPieceId = () => Date.now() * 1000 + (pieceSeq++ % 1000);
+
+  async function filesToPieces(files) {
+    const out = [];
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) continue;
+      try { out.push({ id: newPieceId(), dataUrl: await compressImage(f) }); }
+      catch (e) { showToast('Image non lisible'); }
+    }
+    return out;
+  }
+
+  async function onPickPieces(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    if (!files.length) return;
+    pending.push(...await filesToPieces(files));
+    renderPending();
+  }
+
+  function removePending(id) {
+    pending = pending.filter(p => p.id !== id);
+    renderPending();
+  }
+
+  function renderPending() {
+    document.getElementById('pendingThumbs').innerHTML = pending.map(p => `
+      <div class="thumb"><img src="${p.dataUrl}" alt="">
+        <button class="rm" onclick="removePending(${p.id})">✕</button></div>`).join('');
+  }
+
+  // Ajouter des pièces à une opération déjà enregistrée
+  let targetOpId = null;
+  async function onAddToOperation(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    const op = data.operations.find(o => o.id === targetOpId);
+    if (!files.length || !op) return;
+    const pieces = await filesToPieces(files);
+    try {
+      for (const p of pieces) await putPiece({ id: p.id, opId: op.id, dataUrl: p.dataUrl });
+      op.nbPieces = (op.nbPieces || 0) + pieces.length;
+      save(); render();
+      showToast(pieces.length + ' pièce(s) ajoutée(s) ✓');
+    } catch (e) { showToast('Erreur d\'enregistrement des photos'); }
+  }
+
+  async function viewPieces(opId) {
+    const op = data.operations.find(o => o.id === opId);
+    const list = await getPieces(opId).catch(() => []);
+    document.getElementById('viewerTitle').textContent =
+      'Pièces — ' + (op ? op.operation : '') + ' (' + list.length + ')';
+    const body = document.getElementById('viewerBody');
+    body.innerHTML = list.length ? list.map((p, i) => `
+      <div class="viewer-item">
+        <img src="${p.dataUrl}" alt="Pièce ${i + 1}">
+        <div class="viewer-tools">
+          <a href="${p.dataUrl}" download="piece_${opId}_${i + 1}.jpg">⬇ Enregistrer</a>
+          <button class="danger" onclick="removePiece(${opId}, ${p.id})">🗑 Supprimer</button>
+        </div>
+      </div>`).join('') : '<div class="empty-state">Aucune pièce</div>';
+    document.getElementById('viewer').classList.add('show');
+  }
+
+  function closeViewer() { document.getElementById('viewer').classList.remove('show'); }
+
+  async function removePiece(opId, pieceId) {
+    if (!confirm('Supprimer cette pièce ?')) return;
+    await deletePiece(pieceId);
+    const op = data.operations.find(o => o.id === opId);
+    if (op) op.nbPieces = Math.max(0, (op.nbPieces || 1) - 1);
+    save(); render();
+    if (op && op.nbPieces) viewPieces(opId); else closeViewer();
+  }
+
+  function formatDA(val) {
+    return val.toLocaleString('fr-DZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' DA';
+  }
+
+  // ── iOS install banner ────────────────────────────────
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.navigator.standalone === true;
+  if (isIOS && !isStandalone) {
+    document.getElementById('installBanner').classList.add('show');
+  }
+
+  // ── Manifest intégré (pas de fichier externe) ─────────
+  (function () {
+    if (location.protocol === 'file:') return;
+    try {
+      const manifest = {
+        name: 'Caisse — Institut Ahsen Bouderbala',
+        short_name: 'Caisse',
+        start_url: location.href.split('#')[0],
+        scope: location.href.split('#')[0].replace(/[^\/]*$/, ''),
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#0f0f0f',
+        theme_color: '#0f0f0f',
+        lang: 'fr',
+        icons: [
+          { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAACcklEQVR4nO3dsVHEMBBA0TuGXH3QHLXQHH3QAQEBhOCvQdb5vdy+vZk/sqP1fYxxg6OeVg/A3gREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIjkefUAfPt4fzt24Xh5nTvJ792t+T2Dw+n8tCQjj7D1ptQz8T5/IiASAS0299j4/0NIQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBILJi63fbc7HQSVw8orrP4uvzKGV36Ebb1ZqeTuHRAdNcNaPfNTidx3YCYQkAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAki7dz2Kuyu2UB2avyGNY8wuxVeRjegUgWBGSvyiNxApEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiJZENDcj3wdvpsxptj7BDrJB+euPMaagKb81X4TY3T3McaSH/5ykm+mGuOwxQGxu73fgVhOQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREImASAREIiASAZEIiERAJAIiERCJgEgERCIgEgGRCIhEQCQCIhEQiYBIBEQiIBIBkQiIREAkAiIREMknDmhH4yCk/p8AAAAASUVORK5CYII=', sizes: '192x192', type: 'image/png' },
+          { src: 'data:image/png;base64,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', sizes: '512x512', type: 'image/png' }
+        ]
+      };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+      document.getElementById('manifestLink').setAttribute('href', url);
+    } catch (e) {}
+  })();
+
+  // ── Service Worker (hors ligne) — optionnel : actif seulement si sw.js est à côté de ce fichier
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+  // Demande au navigateur de ne pas effacer les données (photos incluses)
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(() => {});
+  }
+
+  // ── Actions ───────────────────────────────────────────
+  function setType(type) {
+    currentType = type;
+    document.getElementById('btnPlus').classList.toggle('active', type === 'plus');
+    document.getElementById('btnMinus').classList.toggle('active', type === 'minus');
+  }
+
+  function setSoldeInitial() {
+    const val = parseFloat(document.getElementById('soldeInitInput').value);
+    if (isNaN(val)) { showToast('Entrez un montant valide'); return; }
+    data.soldeInitial = val;
+    save(); render();
+    showToast('Solde initial défini');
+  }
+
+  async function addOperation() {
+    const montant = parseFloat(document.getElementById('montantInput').value);
+    const operation = document.getElementById('operationInput').value.trim();
+    const justif = document.getElementById('justifInput').value.trim();
+
+    if (isNaN(montant) || montant <= 0) { showToast('Entrez un montant valide'); return; }
+    if (!operation) { showToast('Entrez une opération'); return; }
+
+    const now = new Date();
+    const currentSolde = getCurrentSolde();
+    const newSolde = currentSolde + (currentType === 'plus' ? montant : -montant);
+
+    const opId = Date.now();
+    let nbPieces = 0;
+    let photoError = false;
+    try {
+      for (const p of pending) { await putPiece({ id: p.id, opId, dataUrl: p.dataUrl }); nbPieces++; }
+    } catch (e) { photoError = true; }
+
+    data.operations.push({
+      id: opId,
+      type: currentType,
+      soldeBefore: currentSolde,
+      montant,
+      operation,
+      justif,
+      nbPieces,
+      soldeAfter: newSolde,
+      date: now.toLocaleDateString('fr-FR'),
+      heure: now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+    });
+
+    save(); render();
+    document.getElementById('montantInput').value = '';
+    document.getElementById('operationInput').value = '';
+    document.getElementById('justifInput').value = '';
+    pending = []; renderPending();
+    showToast(photoError ? 'Opération ajoutée (photos non enregistrées)' : 'Opération ajoutée ✓');
+  }
+
+  function deleteOperation(id) {
+    if (!confirm('Supprimer cette opération (et ses pièces justificatives) ?')) return;
+    deletePieces(id).catch(() => {});
+    data.operations = data.operations.filter(op => op.id !== id);
+    let s = data.soldeInitial;
+    data.operations.forEach(op => {
+      op.soldeBefore = s;
+      op.soldeAfter = s + (op.type === 'plus' ? op.montant : -op.montant);
+      s = op.soldeAfter;
+    });
+    save(); render();
+    showToast('Opération supprimée');
+  }
+
+  function getCurrentSolde() {
+    if (!data.operations.length) return data.soldeInitial;
+    return data.operations[data.operations.length - 1].soldeAfter;
+  }
+
+  function resetAll() {
+    if (!confirm('Réinitialiser toutes les données ?')) return;
+    data = { soldeInitial: 0, operations: [] };
+    clearPieces().catch(() => {});
+    pending = []; renderPending();
+    save(); render();
+    showToast('Données réinitialisées');
+  }
+
+  // ── Render ────────────────────────────────────────────
+  function render() {
+    document.getElementById('soldeDisplay').textContent = formatDA(getCurrentSolde());
+    document.getElementById('soldeInitInput').value = data.soldeInitial || '';
+
+    let totalPlus = 0, totalMinus = 0;
+    data.operations.forEach(op => op.type === 'plus' ? totalPlus += op.montant : totalMinus += op.montant);
+    document.getElementById('totalPlus').textContent = formatDA(totalPlus);
+    document.getElementById('totalMinus').textContent = formatDA(totalMinus);
+    document.getElementById('totalOps').textContent = data.operations.length;
+
+    const tbody = document.getElementById('tableBody');
+    if (!data.operations.length) {
+      tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state">Aucune opération enregistrée</div></td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.operations.map((op, i) => `
+      <tr>
+        <td class="num-cell">${i + 1}</td>
+        <td class="num-cell" style="white-space:nowrap">${op.date}<br><span style="color:var(--accent);font-size:10px">${op.heure || ''}</span></td>
+        <td class="solde-cell">${formatDA(op.soldeBefore)}</td>
+        <td>
+          <span class="badge ${op.type === 'plus' ? 'credit' : 'debit'}">${op.type === 'plus' ? 'CRÉDIT' : 'DÉBIT'}</span>
+          <div style="margin-top:3px;font-size:11px">${esc(op.operation)}</div>
+        </td>
+        <td class="montant-cell ${op.type}">${op.type === 'plus' ? '+' : '−'}${formatDA(op.montant)}</td>
+        <td class="justif-cell" title="${esc(op.justif)}">${esc(op.justif) || '—'}</td>
+        <td class="pieces-cell">
+          ${op.nbPieces ? `<button class="btn-pieces" onclick="viewPieces(${op.id})">📎 ${op.nbPieces}</button>` : '<span style="color:var(--text2)">—</span>'}<label for="addInput" class="btn-addpiece" onclick="targetOpId=${op.id}" title="Ajouter une photo">📷＋</label>
+        </td>
+        <td class="solde-cell" style="color:${op.soldeAfter >= 0 ? 'var(--plus)' : 'var(--minus)'}">${formatDA(op.soldeAfter)}</td>
+        <td><button class="btn-del" onclick="deleteOperation(${op.id})">🗑</button></td>
+      </tr>
+    `).join('');
+  }
+
+  // ── Excel Export ──────────────────────────────────────
+  function exportExcel() {
+    if (!data.operations.length) { showToast('Aucune opération à exporter'); return; }
+
+    const rows = [['N°','Date','Heure','Solde Avant (DA)','Opération','Type','Montant (DA)','Justification','Nb pièces jointes','Nouveau Solde (DA)']];
+    data.operations.forEach((op, i) => rows.push([
+      i + 1, op.date, op.heure || '', op.soldeBefore, op.operation,
+      op.type === 'plus' ? 'CRÉDIT' : 'DÉBIT',
+      op.type === 'plus' ? op.montant : -op.montant,
+      op.justif || '', op.nbPieces || 0, op.soldeAfter
+    ]));
+
+    rows.push([], ['','Solde Initial', data.soldeInitial], ['','Solde Final', getCurrentSolde()],
+      ['','Total Entrées', data.operations.filter(o=>o.type==='plus').reduce((s,o)=>s+o.montant,0)],
+      ['','Total Sorties', data.operations.filter(o=>o.type==='minus').reduce((s,o)=>s+o.montant,0)]);
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:12},{wch:8},{wch:16},{wch:28},{wch:10},{wch:14},{wch:30},{wch:12},{wch:18}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Caisse');
+    XLSX.writeFile(wb, `Caisse_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`);
+    showToast('Fichier Excel exporté ✓');
+  }
+
+  // ── Sauvegarde / Restauration (JSON, photos incluses) ──
+  const getAllPieces = () => idb('readonly', (st, set) => {
+    const r = st.getAll();
+    r.onsuccess = () => set(r.result);
+  }).catch(() => []).then(list => list.concat([...memPieces.values()]));
+
+  async function exportBackup() {
+    try {
+      const pieces = await getAllPieces();
+      const payload = { app: 'caisse', version: 1, exportedAt: new Date().toISOString(), data, pieces };
+      const name = 'Caisse_sauvegarde_' + new Date().toISOString().slice(0, 10) + '.json';
+      const file = new File([JSON.stringify(payload)], name, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: name }); showToast('Sauvegarde prête ✓'); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }
+      }
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      showToast('Sauvegarde exportée ✓');
+    } catch (e) { showToast('Échec de la sauvegarde'); }
+  }
+
+  async function importBackup(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    try {
+      const obj = JSON.parse(await file.text());
+      if (!obj || !obj.data || !Array.isArray(obj.data.operations)) throw new Error('format');
+      if (!confirm('Remplacer toutes les données actuelles par cette sauvegarde (' + obj.data.operations.length + ' opérations) ?')) return;
+      await clearPieces();
+      for (const p of (obj.pieces || [])) await putPiece(p);
+      data = obj.data;
+      save(); render();
+      showToast('Sauvegarde restaurée ✓');
+    } catch (e) { showToast('Fichier de sauvegarde invalide'); }
+  }
+
+  // ── Toast ─────────────────────────────────────────────
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  render();
+
+  // Vérifie que le stockage conserve vraiment les données
+  try {
+    localStorage.setItem('__caisse_test', '1');
+    if (localStorage.getItem('__caisse_test') !== '1') storageOK = false;
+    localStorage.removeItem('__caisse_test');
+  } catch (e) { storageOK = false; }
+
+  const isWebOrigin = location.protocol === 'http:' || location.protocol === 'https:';
+  if (!storageOK || !isWebOrigin) {
+    const w = document.createElement('div');
+    w.className = 'install-banner show';
+    w.style.borderColor = 'rgba(255,77,109,0.5)';
+    w.style.background = 'rgba(255,77,109,0.08)';
+    w.innerHTML = '⚠ <strong style="color:var(--minus)">Les données ne sont PAS conservées.</strong><br>' +
+      (!isWebOrigin
+        ? 'Ce fichier est ouvert localement (Fichiers, WhatsApp, e-mail…). Ouvrez-le via un lien <strong>https</strong> dans Safari, puis installez-le sur l\'écran d\'accueil.'
+        : 'Le stockage du navigateur est bloqué (navigation privée ?). Ouvrez la page dans un onglet normal de Safari.') +
+      '<br>En attendant, utilisez <strong>💾 Sauvegarde</strong> pour garder vos données.';
+    document.querySelector('header').after(w);
+  }
+</script>
+</body>
+</html>
