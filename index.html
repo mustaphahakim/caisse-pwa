@@ -21,6 +21,7 @@
 
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
 <style>
   :root {
@@ -392,6 +393,15 @@
   }
   .viewer-item .viewer-tools button.danger { color: var(--minus); border-color: rgba(255,77,109,0.4); }
 
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 1100; align-items: center; justify-content: center; padding: 16px; }
+  .modal.show { display: flex; }
+  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; width: 100%; max-width: 380px; }
+  .modal-box h3 { font-size: 15px; color: var(--accent); margin-bottom: 8px; font-family: 'IBM Plex Mono', monospace; }
+  .modal-box p { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; word-break: break-all; }
+  .modal-actions { display: flex; flex-direction: column; gap: 8px; }
+  .modal-actions button { padding: 13px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; border: 1px solid var(--border); background: var(--surface2); color: var(--text); }
+  .modal-actions button.primary { background: var(--accent); color: #000; border: none; }
+
   .toast {
     position: fixed;
     bottom: calc(20px + var(--safe-bottom));
@@ -544,6 +554,19 @@
         <tr><td colspan="8"><div class="empty-state">Aucune opération enregistrée</div></td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- Dialogue d'export Excel -->
+<div class="modal" id="exportDlg">
+  <div class="modal-box">
+    <h3>📥 Fichier Excel prêt</h3>
+    <p id="exportInfo"></p>
+    <div class="modal-actions">
+      <button class="primary" id="btnShare" onclick="shareExport()">📤 Envoyer / Partager</button>
+      <button onclick="downloadExport()">⬇ Télécharger</button>
+      <button onclick="closeExportDlg()">Fermer</button>
+    </div>
   </div>
 </div>
 
@@ -868,8 +891,9 @@
   }
 
   // ── Excel Export ──────────────────────────────────────
-  function exportExcel() {
+  function exportExcelBasic() {
     if (!data.operations.length) { showToast('Aucune opération à exporter'); return; }
+    if (!window.XLSX) { showToast('Export impossible hors ligne : connectez-vous à Internet'); return; }
 
     const rows = [['N°','Date','Heure','Solde Avant (DA)','Opération','Type','Montant (DA)','Justification','Nb pièces jointes','Nouveau Solde (DA)']];
     data.operations.forEach((op, i) => rows.push([
@@ -888,6 +912,148 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Caisse');
     XLSX.writeFile(wb, `Caisse_${new Date().toLocaleDateString('fr-FR').replace(/\//g,'-')}.xlsx`);
+    showToast('Fichier Excel exporté ✓');
+  }
+
+  // ── Export Excel avec photos (ExcelJS) ────────────────
+  const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  let exportFile = null;
+
+  function loadImageSize(dataUrl) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth || 4, h: img.naturalHeight || 3 });
+      img.onerror = () => resolve({ w: 4, h: 3 });
+      img.src = dataUrl;
+    });
+  }
+
+  async function exportExcel() {
+    if (!data.operations.length) { showToast('Aucune opération à exporter'); return; }
+    if (!window.ExcelJS) {
+      showToast('Photos non incluses (bibliothèque non chargée)');
+      exportExcelBasic();
+      return;
+    }
+    showToast('Préparation du fichier…');
+    try {
+      const fmtNum = '#,##0.00';
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Caisse';
+      const ws = wb.addWorksheet('Caisse', { views: [{ state: 'frozen', ySplit: 1 }] });
+      ws.columns = [
+        { header: 'N°', width: 6 }, { header: 'Date', width: 12 }, { header: 'Heure', width: 8 },
+        { header: 'Solde Avant (DA)', width: 18 }, { header: 'Opération', width: 28 }, { header: 'Type', width: 10 },
+        { header: 'Montant (DA)', width: 16 }, { header: 'Justification', width: 32 },
+        { header: 'Pièces jointes', width: 20 }, { header: 'Nouveau Solde (DA)', width: 18 }
+      ];
+      const head = ws.getRow(1);
+      head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A1A' } };
+      head.alignment = { vertical: 'middle', wrapText: true };
+
+      const wp = wb.addWorksheet('Pièces');
+      wp.getColumn(1).width = 90;
+      wp.getCell(1, 1).value = 'Pièces justificatives';
+      wp.getCell(1, 1).font = { bold: true, size: 14 };
+      let pr = 3, totalPhotos = 0;
+
+      for (let i = 0; i < data.operations.length; i++) {
+        const op = data.operations[i];
+        const signed = op.type === 'plus' ? op.montant : -op.montant;
+        const list = op.nbPieces ? await getPieces(op.id).catch(() => []) : [];
+        let link = null;
+
+        if (list.length) {
+          const t = wp.getCell(pr, 1);
+          t.value = 'N° ' + (i + 1) + ' — ' + op.date + ' ' + (op.heure || '') + ' — ' + op.operation +
+                    ' — ' + signed.toLocaleString('fr-FR', { minimumFractionDigits: 2 }) + ' DA' +
+                    (op.justif ? ' — ' + op.justif : '');
+          t.font = { bold: true };
+          t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9F7EB' } };
+          t.alignment = { wrapText: true, vertical: 'middle' };
+          link = "#'Pièces'!A" + pr;
+          pr += 1;
+          for (const p of list) {
+            const { w, h } = await loadImageSize(p.dataUrl);
+            const sc = Math.min(1, 520 / w, 520 / h);
+            const dw = Math.round(w * sc), dh = Math.round(h * sc);
+            const imgId = wb.addImage({ base64: p.dataUrl, extension: 'jpeg' });
+            wp.addImage(imgId, { tl: { col: 0, row: pr - 1 }, ext: { width: dw, height: dh } });
+            pr += Math.ceil(dh / 20) + 1;
+            totalPhotos++;
+          }
+          pr += 1;
+        }
+
+        const r = ws.addRow([i + 1, op.date, op.heure || '', op.soldeBefore, op.operation,
+          op.type === 'plus' ? 'CRÉDIT' : 'DÉBIT', signed, op.justif || '', '', op.soldeAfter]);
+        r.getCell(4).numFmt = fmtNum;
+        r.getCell(7).numFmt = fmtNum;
+        r.getCell(10).numFmt = fmtNum;
+        r.getCell(7).font = { bold: true, color: { argb: op.type === 'plus' ? 'FF008F5D' : 'FFD6264A' } };
+        const pc = r.getCell(9);
+        if (link) {
+          pc.value = { text: '📎 ' + list.length + ' photo(s)', hyperlink: link };
+          pc.font = { color: { argb: 'FF0563C1' }, underline: true };
+        } else {
+          pc.value = '—';
+        }
+      }
+
+      ws.addRow([]);
+      const sums = [
+        ['Solde Initial', data.soldeInitial],
+        ['Solde Final', getCurrentSolde()],
+        ['Total Entrées', data.operations.filter(o => o.type === 'plus').reduce((s, o) => s + o.montant, 0)],
+        ['Total Sorties', data.operations.filter(o => o.type === 'minus').reduce((s, o) => s + o.montant, 0)]
+      ];
+      sums.forEach(([label, val]) => {
+        const r = ws.addRow(['', label, val]);
+        r.getCell(2).font = { bold: true };
+        r.getCell(3).numFmt = fmtNum;
+      });
+
+      if (!totalPhotos) wb.removeWorksheet(wp.id);
+
+      const buf = await wb.xlsx.writeBuffer();
+      const name = 'Caisse_' + new Date().toLocaleDateString('fr-FR').replace(/\//g, '-') + '.xlsx';
+      exportFile = new File([buf], name, { type: XLSX_MIME });
+      openExportDlg(totalPhotos);
+    } catch (e) {
+      console.error(e);
+      showToast('Erreur : export simple sans photos');
+      exportExcelBasic();
+    }
+  }
+
+  function openExportDlg(nPhotos) {
+    const mo = (exportFile.size / 1048576).toFixed(1);
+    document.getElementById('exportInfo').textContent =
+      exportFile.name + ' — ' + data.operations.length + ' opération(s), ' + nPhotos + ' photo(s), ' + mo + ' Mo';
+    const canShare = !!(navigator.canShare && navigator.canShare({ files: [exportFile] }));
+    document.getElementById('btnShare').style.display = canShare ? '' : 'none';
+    document.getElementById('exportDlg').classList.add('show');
+  }
+
+  function closeExportDlg() { document.getElementById('exportDlg').classList.remove('show'); }
+
+  async function shareExport() {
+    try {
+      await navigator.share({ files: [exportFile], title: exportFile.name });
+      closeExportDlg();
+    } catch (e) {
+      if (!e || e.name !== 'AbortError') showToast('Partage impossible : utilisez Télécharger');
+    }
+  }
+
+  function downloadExport() {
+    const url = URL.createObjectURL(exportFile);
+    const a = document.createElement('a');
+    a.href = url; a.download = exportFile.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    closeExportDlg();
     showToast('Fichier Excel exporté ✓');
   }
 
