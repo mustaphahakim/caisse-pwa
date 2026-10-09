@@ -18,7 +18,14 @@ jobs:
         run: cp index.html android/app/src/main/assets/index.html
       - name: Compiler
         working-directory: android
-        run: gradle --no-daemon assembleRelease
+        run: |
+          set +e
+          gradle --no-daemon assembleRelease > build.log 2>&1
+          rc=$?
+          if [ $rc -ne 0 ]; then
+            grep -nE "error:|What went wrong|Execution failed|Could not|not found|Caused by|FAILED" -A2 build.log | head -12 | tr '\n' ' ' | sed 's/%/%25/g' | while read -r l; do echo "::error::$l"; done
+          fi
+          exit $rc
       - name: Renommer l'APK
         run: cp android/app/build/outputs/apk/release/app-release.apk Caisse.apk
       - uses: actions/upload-artifact@v4
