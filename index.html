@@ -617,7 +617,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
-<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v5 — Excel : téléchargement</div>
+<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v6 — Android + Excel</div>
 
 <div class="toast" id="toast"></div>
 
@@ -1062,6 +1062,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const err = document.getElementById('exportErr');
     err.style.display = 'none';
     const t0 = Date.now();
+    if (window.CaisseAndroid) { await nativeSave(exportFile, true); closeExportDlg(); return; }
     try {
       await navigator.share({ files: [exportFile] });
       closeExportDlg();
@@ -1075,6 +1076,30 @@ https://github.com/nodeca/pako/blob/main/LICENSE
         '). Il a été enregistré dans « Téléchargements » : envoyez-le depuis l\'application Fichiers.';
     }
   }
+
+  // ── Application Android (WebView) : enregistrement / partage natifs ──
+  function nativeSave(blob, share) {
+    return new Promise((resolve) => {
+      const fr = new FileReader();
+      fr.onload = () => {
+        try { window.CaisseAndroid.saveFile(String(fr.result).split(',')[1] || '', blob.name || 'fichier', blob.type || 'application/octet-stream', !!share); }
+        catch (e) { showToast('Échec de l\'enregistrement'); }
+        resolve();
+      };
+      fr.onerror = () => { showToast('Échec de l\'enregistrement'); resolve(); };
+      fr.readAsDataURL(blob);
+    });
+  }
+  document.addEventListener('click', async (ev) => {
+    const a = ev.target && ev.target.closest ? ev.target.closest('a[download]') : null;
+    if (!a || !window.CaisseAndroid) return;
+    ev.preventDefault();
+    try {
+      const blob = await (await fetch(a.href)).blob();
+      blob.name = a.getAttribute('download') || 'fichier';
+      await nativeSave(blob, false);
+    } catch (e) { showToast('Échec de l\'enregistrement'); }
+  }, true);
 
   function downloadExport(keepOpen) {
     const url = URL.createObjectURL(exportFile);
@@ -1098,7 +1123,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const payload = { app: 'caisse', version: 1, exportedAt: new Date().toISOString(), data, pieces };
       const name = 'Caisse_sauvegarde_' + new Date().toISOString().slice(0, 10) + '.json';
       const file = new File([JSON.stringify(payload)], name, { type: 'application/json' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (!window.CaisseAndroid && navigator.canShare && navigator.canShare({ files: [file] })) {
         try { await navigator.share({ files: [file], title: name }); showToast('Sauvegarde prête ✓'); return; }
         catch (e) { if (e && e.name === 'AbortError') return; }
       }
