@@ -607,17 +607,17 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   <div class="modal-box">
     <h3>📥 Fichier Excel prêt</h3>
     <p id="exportInfo"></p>
-    <p id="exportErr" style="display:none;color:var(--minus);border:1px solid rgba(255,77,109,0.4);border-radius:8px;padding:8px 10px"></p>
+    <p id="exportErr" style="display:none;border-radius:8px;padding:8px 10px"></p>
+    <p style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px">Après le téléchargement : ouvrez <strong>Fichiers › Téléchargements</strong>, appui long sur le fichier › <strong>Partager</strong> (WhatsApp, e-mail…).</p>
     <div class="modal-actions">
-      <button class="primary" id="btnShare" onclick="shareExport()">📤 Envoyer / Partager</button>
-      <button onclick="openPreview()">👁 Ouvrir l'aperçu</button>
-      <button onclick="downloadExport()">⬇ Télécharger</button>
+      <button class="primary" onclick="downloadExport()">⬇ Télécharger le fichier</button>
+      <button id="btnShare" onclick="shareExport()">📤 Partager directement</button>
       <button onclick="closeExportDlg()">Fermer</button>
     </div>
   </div>
 </div>
 
-<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v4 — Excel + partage</div>
+<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v5 — Excel : téléchargement</div>
 
 <div class="toast" id="toast"></div>
 
@@ -1068,28 +1068,22 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     } catch (e) {
       // Annulation volontaire (menu ouvert puis fermé) : rien à signaler
       if (e && e.name === 'AbortError' && Date.now() - t0 > 800) return;
-      err.textContent = '⚠ Partage refusé par le navigateur — ' + (e && e.name ? e.name : 'erreur') +
-        (e && e.message ? ' : ' + e.message : '') + ' (' + (exportFile.size / 1048576).toFixed(1) + ' Mo). ' +
-        'Essayez « Ouvrir l\'aperçu » ou « Télécharger ».';
-      err.style.display = 'block';
+      // Le navigateur refuse ce type de fichier : on l'enregistre à la place
+      downloadExport(true);
+      err.style.cssText = 'display:block;border-radius:8px;padding:8px 10px;color:#ffb020;border:1px solid rgba(255,176,32,0.5)';
+      err.textContent = 'ℹ Ce navigateur n\'autorise pas le partage direct de ce fichier (' + (e && e.name ? e.name : 'erreur') +
+        '). Il a été enregistré dans « Téléchargements » : envoyez-le depuis l\'application Fichiers.';
     }
   }
 
-  function openPreview() {
-    const url = URL.createObjectURL(exportFile);
-    const w = window.open(url, '_blank');
-    if (!w) showToast('Aperçu bloqué par le navigateur');
-    setTimeout(() => URL.revokeObjectURL(url), 120000);
-  }
-
-  function downloadExport() {
+  function downloadExport(keepOpen) {
     const url = URL.createObjectURL(exportFile);
     const a = document.createElement('a');
     a.href = url; a.download = exportFile.name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
-    closeExportDlg();
-    showToast('Fichier Excel exporté ✓');
+    if (keepOpen !== true) closeExportDlg();
+    showToast('Fichier enregistré dans Téléchargements ✓');
   }
 
   // ── Sauvegarde / Restauration (JSON, photos incluses) ──
