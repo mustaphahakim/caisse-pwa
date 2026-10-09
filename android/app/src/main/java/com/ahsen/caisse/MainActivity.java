@@ -5,7 +5,20 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.os.Build;
+import android.view.Gravity;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -33,11 +46,89 @@ public class MainActivity extends AppCompatActivity {
     private Uri cameraUri;
     private WebChromeClient.FileChooserParams pendingParams;
 
+    // ── Verrouillage par empreinte ──
+    private SharedPreferences prefs;
+    private View lockView;
+    private boolean locked = false, skipNextLock = false, prompting = false;
+    private long stoppedAt = 0;
+    private static final long RELOCK_MS = 20_000;
+
+    private int authenticators() {
+        return Build.VERSION.SDK_INT >= 30
+                ? BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                : BiometricManager.Authenticators.BIOMETRIC_WEAK;
+    }
+    private boolean biometricAvailable() {
+        return BiometricManager.from(this).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK)
+                == BiometricManager.BIOMETRIC_SUCCESS;
+    }
+    private boolean lockWanted() { return prefs.getBoolean("lock_enabled", true) && biometricAvailable(); }
+
+    private View buildLockView() {
+        LinearLayout l = new LinearLayout(this);
+        l.setOrientation(LinearLayout.VERTICAL);
+        l.setGravity(Gravity.CENTER);
+        l.setBackgroundColor(Color.parseColor("#0F1115"));
+        l.setClickable(true);
+        TextView t = new TextView(this);
+        t.setText("🔒\nCaisse verrouillée");
+        t.setTextColor(Color.WHITE); t.setTextSize(22); t.setGravity(Gravity.CENTER);
+        Button b = new Button(this);
+        b.setText("Déverrouiller par empreinte");
+        b.setOnClickListener(v -> authenticate());
+        l.addView(t);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.topMargin = 48;
+        l.addView(b, lp);
+        return l;
+    }
+
+    private void lockNow() {
+        if (!lockWanted()) return;
+        locked = true;
+        lockView.setVisibility(View.VISIBLE);
+        authenticate();
+    }
+
+    private void authenticate() {
+        if (prompting) return;
+        prompting = true;
+        BiometricPrompt.PromptInfo.Builder pi = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Caisse — Institut Ahsen Bouderbala")
+                .setSubtitle("Posez votre doigt sur le capteur")
+                .setAllowedAuthenticators(authenticators());
+        if (Build.VERSION.SDK_INT < 30) pi.setNegativeButtonText("Annuler");
+        BiometricPrompt prompt = new BiometricPrompt(this, ContextCompat.getMainExecutor(this),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult r) {
+                        prompting = false; locked = false; lockView.setVisibility(View.GONE);
+                    }
+                    @Override public void onAuthenticationError(int code, CharSequence msg) { prompting = false; }
+                });
+        prompt.authenticate(pi.build());
+    }
+
+    @Override
+    protected void onStop() { super.onStop(); stoppedAt = System.currentTimeMillis(); }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        if (skipNextLock) { skipNextLock = false; return; }
+        if (!locked && stoppedAt > 0 && System.currentTimeMillis() - stoppedAt > RELOCK_MS) lockNow();
+    }
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
+        prefs = getSharedPreferences("caisse_prefs", MODE_PRIVATE);
         web = new WebView(this);
-        setContentView(web);
+        FrameLayout root = new FrameLayout(this);
+        root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        lockView = buildLockView();
+        lockView.setVisibility(View.GONE);
+        root.addView(lockView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
 
         final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this)).build();
@@ -72,6 +163,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         web.loadUrl("https://appassets.androidplatform.net/assets/index.html");
+        if (lockWanted()) { locked = true; lockView.setVisibility(View.VISIBLE); web.post(this::authenticate); }
     }
 
     private void launchChooser(WebChromeClient.FileChooserParams p) {
@@ -88,6 +180,7 @@ public class MainActivity extends AppCompatActivity {
                 cameraUri = null;
                 intent = p.createIntent();
             }
+            skipNextLock = true;
             startActivityForResult(intent, REQ_FILE);
         } catch (Exception e) {
             if (filePathCallback != null) filePathCallback.onReceiveValue(null);
@@ -137,6 +230,10 @@ public class MainActivity extends AppCompatActivity {
 
     /** Pont JavaScript : enregistre dans « Téléchargements » et peut ouvrir le partage Android. */
     private class Bridge {
+        @JavascriptInterface public boolean lockAvailable() { return biometricAvailable(); }
+        @JavascriptInterface public boolean isLockEnabled() { return prefs.getBoolean("lock_enabled", true) && biometricAvailable(); }
+        @JavascriptInterface public void setLockEnabled(boolean on) { prefs.edit().putBoolean("lock_enabled", on).apply(); }
+
         @JavascriptInterface
         public void saveFile(String base64, String name, String mime, boolean share) {
             try {
@@ -155,6 +252,7 @@ public class MainActivity extends AppCompatActivity {
                         i.setType(mime);
                         i.putExtra(Intent.EXTRA_STREAM, uri);
                         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        skipNextLock = true;
                         startActivity(Intent.createChooser(i, "Envoyer le fichier"));
                     }
                 });

@@ -6,8 +6,8 @@ android {
         applicationId 'com.ahsen.caisse'
         minSdk 29
         targetSdk 34
-        versionCode 6
-        versionName '6.0'
+        versionCode 7
+        versionName '7.0'
     }
     buildTypes {
         release {
@@ -21,4 +21,5 @@ dependencies {
     implementation platform('org.jetbrains.kotlin:kotlin-bom:1.8.22')
     implementation 'androidx.webkit:webkit:1.11.0'
     implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
 }

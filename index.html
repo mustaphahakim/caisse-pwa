@@ -440,7 +440,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.78); z-index: 1100; align-items: center; justify-content: center; padding: 16px; }
   .modal.show { display: flex; }
-  .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; width: 100%; max-width: 380px; }
+  .modal-box { max-height: 92vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; width: 100%; max-width: 380px; }
   .modal-box h3 { font-size: 15px; color: var(--accent); margin-bottom: 8px; font-family: 'IBM Plex Mono', monospace; }
   .modal-box p { font-size: 12px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; word-break: break-all; }
   .modal-actions { display: flex; flex-direction: column; gap: 8px; }
@@ -515,6 +515,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   <button class="btn-set" style="flex:1" onclick="exportBackup()">💾 Sauvegarde</button>
   <label for="restoreInput" class="btn-set" style="flex:1;text-align:center">📂 Restaurer</label>
   <input type="file" id="restoreInput" accept=".json,application/json" class="file-hidden" onchange="importBackup(this)">
+</div>
+
+<!-- Verrouillage par empreinte (application Android uniquement) -->
+<div class="solde-init-section" id="lockSection" style="display:none">
+  <button class="btn-set" style="flex:1" id="btnLock" onclick="toggleLock()">🔒 Verrouillage par empreinte</button>
 </div>
 
 <!-- Stats -->
@@ -602,6 +607,34 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
+<!-- Dialogue de modification -->
+<div class="modal" id="editDlg">
+  <div class="modal-box">
+    <h3>✏️ Modifier l'opération</h3>
+    <div class="type-toggle">
+      <button class="type-btn plus active" id="editPlus" onclick="setEditType('plus')">＋ Crédit</button>
+      <button class="type-btn minus" id="editMinus" onclick="setEditType('minus')">－ Débit</button>
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Montant (DA)</label>
+      <input type="number" id="editMontant" step="0.01" min="0" inputmode="decimal">
+    </div>
+    <div class="form-group" style="margin-bottom:10px;">
+      <label>Opération</label>
+      <input type="text" id="editOperation">
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>Justification</label>
+      <textarea id="editJustif"></textarea>
+    </div>
+    <p style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px">Les photos sont conservées. Les soldes de toutes les opérations suivantes sont recalculés.</p>
+    <div class="modal-actions">
+      <button class="primary" onclick="saveEdit()">✔ Enregistrer</button>
+      <button onclick="closeEditDlg()">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <!-- Dialogue d'export Excel -->
 <div class="modal" id="exportDlg">
   <div class="modal-box">
@@ -617,7 +650,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
-<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v6 — Android + Excel</div>
+<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v7 — modification + empreinte</div>
 
 <div class="toast" id="toast"></div>
 
@@ -878,14 +911,54 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     if (!confirm('Supprimer cette opération (et ses pièces justificatives) ?')) return;
     deletePieces(id).catch(() => {});
     data.operations = data.operations.filter(op => op.id !== id);
+    recalcSoldes();
+    save(); render();
+    showToast('Opération supprimée');
+  }
+
+  function recalcSoldes() {
     let s = data.soldeInitial;
     data.operations.forEach(op => {
       op.soldeBefore = s;
       op.soldeAfter = s + (op.type === 'plus' ? op.montant : -op.montant);
       s = op.soldeAfter;
     });
+  }
+
+  // ── Modification d'une opération ──
+  let editId = null, editType = 'plus';
+  function setEditType(t) {
+    editType = t;
+    document.getElementById('editPlus').classList.toggle('active', t === 'plus');
+    document.getElementById('editMinus').classList.toggle('active', t === 'minus');
+  }
+  function editOperation(id) {
+    const op = data.operations.find(o => o.id === id);
+    if (!op) return;
+    editId = id;
+    document.getElementById('editMontant').value = op.montant;
+    document.getElementById('editOperation').value = op.operation || '';
+    document.getElementById('editJustif').value = op.justif || '';
+    setEditType(op.type);
+    document.getElementById('editDlg').classList.add('show');
+  }
+  function closeEditDlg() { document.getElementById('editDlg').classList.remove('show'); editId = null; }
+  function saveEdit() {
+    const op = data.operations.find(o => o.id === editId);
+    if (!op) { closeEditDlg(); return; }
+    const montant = parseFloat(document.getElementById('editMontant').value);
+    const operation = document.getElementById('editOperation').value.trim();
+    if (isNaN(montant) || montant <= 0) { showToast('Entrez un montant valide'); return; }
+    if (!operation) { showToast('Entrez une opération'); return; }
+    op.montant = montant;
+    op.type = editType;
+    op.operation = operation;
+    op.justif = document.getElementById('editJustif').value.trim();
+    op.modifie = true;
+    recalcSoldes();
     save(); render();
-    showToast('Opération supprimée');
+    closeEditDlg();
+    showToast('Opération modifiée ✓ (soldes recalculés)');
   }
 
   function getCurrentSolde() {
@@ -934,7 +1007,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
           ${op.nbPieces ? `<button class="btn-pieces" onclick="viewPieces(${op.id})">📎 ${op.nbPieces}</button>` : '<span style="color:var(--text2)">—</span>'}<label for="addInput" class="btn-addpiece" onclick="targetOpId=${op.id}" title="Ajouter une photo">📷＋</label>
         </td>
         <td class="solde-cell" style="color:${op.soldeAfter >= 0 ? 'var(--plus)' : 'var(--minus)'}">${formatDA(op.soldeAfter)}</td>
-        <td><button class="btn-del" onclick="deleteOperation(${op.id})">🗑</button></td>
+        <td style="white-space:nowrap"><button class="btn-del" style="color:var(--accent)" title="Modifier" onclick="editOperation(${op.id})">✏️</button> <button class="btn-del" onclick="deleteOperation(${op.id})">🗑</button></td>
       </tr>
     `).join('');
   }
@@ -1152,6 +1225,26 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     } catch (e) { showToast('Fichier de sauvegarde invalide'); }
   }
 
+  // ── Verrouillage par empreinte (pont Android) ──
+  function refreshLockUI() {
+    const sec = document.getElementById('lockSection');
+    if (!window.CaisseAndroid || !window.CaisseAndroid.lockAvailable) return;
+    sec.style.display = '';
+    const avail = window.CaisseAndroid.lockAvailable();
+    const on = window.CaisseAndroid.isLockEnabled();
+    document.getElementById('btnLock').textContent = !avail
+      ? '🔒 Empreinte non configurée sur ce téléphone'
+      : '🔒 Verrouillage par empreinte : ' + (on ? 'ACTIVÉ ✓' : 'désactivé');
+  }
+  function toggleLock() {
+    if (!window.CaisseAndroid) return;
+    if (!window.CaisseAndroid.lockAvailable()) {
+      showToast('Ajoutez d\'abord une empreinte dans les paramètres du téléphone'); return;
+    }
+    window.CaisseAndroid.setLockEnabled(!window.CaisseAndroid.isLockEnabled());
+    refreshLockUI();
+  }
+
   // ── Toast ─────────────────────────────────────────────
   function showToast(msg) {
     const t = document.getElementById('toast');
@@ -1161,6 +1254,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   render();
+  refreshLockUI();
 
   // Vérifie que le stockage conserve vraiment les données
   try {
