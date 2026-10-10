@@ -510,6 +510,11 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   <button class="btn-set" onclick="setSoldeInitial()">Définir</button>
 </div>
 
+<div id="backupBanner" style="display:none;margin:0 16px 10px;padding:10px 12px;border:1px solid rgba(255,176,32,0.5);border-radius:8px;color:#ffb020;font-size:12px;line-height:1.6">
+  ⚠ Dernière sauvegarde complète il y a <strong id="backupDays">0</strong> jours. Pensez à sauvegarder (photos incluses) et à envoyer le fichier à un autre endroit (WhatsApp, e-mail, ordinateur).
+  <button class="btn-set" style="margin-top:8px;width:100%" onclick="exportBackup()">💾 Sauvegarder maintenant</button>
+</div>
+
 <!-- Sauvegarde / restauration -->
 <div class="solde-init-section" style="gap:8px">
   <button class="btn-set" style="flex:1" onclick="exportBackup()">💾 Sauvegarde</button>
@@ -650,7 +655,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
-<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v7 — modification + empreinte</div>
+<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v8 — sauvegarde auto</div>
 
 <div class="toast" id="toast"></div>
 
@@ -666,6 +671,36 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function save() {
     try { localStorage.setItem('caisse_data', JSON.stringify(data)); }
     catch (e) { storageOK = false; }
+    scheduleAutoBackup();
+  }
+
+  // ── Sauvegarde automatique (application Android) : données seules, sans photos ──
+  let autoTimer = null;
+  function scheduleAutoBackup() {
+    if (!(window.CaisseAndroid && window.CaisseAndroid.autoBackup)) return;
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => {
+      // Ne jamais écraser une bonne sauvegarde par des données vides (ex. après Reset)
+      if (!data || (!data.operations.length && !data.soldeInitial)) return;
+      try {
+        window.CaisseAndroid.autoBackup(JSON.stringify({ app: 'caisse', version: 1, auto: true, exportedAt: new Date().toISOString(), data, pieces: [] }));
+      } catch (e) {}
+    }, 2500);
+  }
+
+  // ── Rappel de sauvegarde complète (photos incluses) ──
+  const BACKUP_EVERY_MS = 7 * 24 * 3600 * 1000;
+  function markFullBackup() { try { localStorage.setItem('caisse_last_backup', String(Date.now())); } catch (e) {} refreshBackupBanner(); }
+  function refreshBackupBanner() {
+    const el = document.getElementById('backupBanner');
+    if (!el) return;
+    let last = 0; try { last = parseInt(localStorage.getItem('caisse_last_backup') || '0', 10) || 0; } catch (e) {}
+    if (!last && data && data.operations.length) {   // première utilisation : on part d'aujourd'hui
+      last = Date.now(); try { localStorage.setItem('caisse_last_backup', String(last)); } catch (e) {}
+    }
+    const due = data && data.operations.length && last && (Date.now() - last > BACKUP_EVERY_MS);
+    el.style.display = due ? '' : 'none';
+    if (due) document.getElementById('backupDays').textContent = Math.floor((Date.now() - last) / 86400000);
   }
 
   function esc(s) {
@@ -1197,7 +1232,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const name = 'Caisse_sauvegarde_' + new Date().toISOString().slice(0, 10) + '.json';
       const file = new File([JSON.stringify(payload)], name, { type: 'application/json' });
       if (!window.CaisseAndroid && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: name }); showToast('Sauvegarde prête ✓'); return; }
+        try { await navigator.share({ files: [file], title: name }); markFullBackup(); showToast('Sauvegarde prête ✓'); return; }
         catch (e) { if (e && e.name === 'AbortError') return; }
       }
       const url = URL.createObjectURL(file);
@@ -1205,6 +1240,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       a.href = url; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
+      markFullBackup();
       showToast('Sauvegarde exportée ✓');
     } catch (e) { showToast('Échec de la sauvegarde'); }
   }
@@ -1217,7 +1253,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       const obj = JSON.parse(await file.text());
       if (!obj || !obj.data || !Array.isArray(obj.data.operations)) throw new Error('format');
       if (!confirm('Remplacer toutes les données actuelles par cette sauvegarde (' + obj.data.operations.length + ' opérations) ?')) return;
-      await clearPieces();
+      if (!obj.auto) await clearPieces();   // la sauvegarde auto ne contient pas de photos : on garde celles de l'appareil
       for (const p of (obj.pieces || [])) await putPiece(p);
       data = obj.data;
       save(); render();
@@ -1255,6 +1291,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 
   render();
   refreshLockUI();
+  refreshBackupBanner();
 
   // Vérifie que le stockage conserve vraiment les données
   try {

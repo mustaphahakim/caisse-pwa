@@ -234,6 +234,29 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface public boolean isLockEnabled() { return prefs.getBoolean("lock_enabled", true) && biometricAvailable(); }
         @JavascriptInterface public void setLockEnabled(boolean on) { prefs.edit().putBoolean("lock_enabled", on).apply(); }
 
+        /** Sauvegarde automatique : un seul fichier Download/Caisse/Caisse_auto.json, remplacé à chaque fois. */
+        @JavascriptInterface
+        public void autoBackup(String json) {
+            try {
+                ContentResolver cr = getContentResolver();
+                Uri table = MediaStore.Downloads.EXTERNAL_CONTENT_URI;
+                Uri target = null;
+                try (android.database.Cursor c = cr.query(table, new String[]{MediaStore.Downloads._ID},
+                        MediaStore.Downloads.DISPLAY_NAME + "=? AND " + MediaStore.Downloads.RELATIVE_PATH + "=?",
+                        new String[]{"Caisse_auto.json", "Download/Caisse/"}, null)) {
+                    if (c != null && c.moveToFirst()) target = android.content.ContentUris.withAppendedId(table, c.getLong(0));
+                }
+                if (target == null) {
+                    ContentValues v = new ContentValues();
+                    v.put(MediaStore.Downloads.DISPLAY_NAME, "Caisse_auto.json");
+                    v.put(MediaStore.Downloads.MIME_TYPE, "application/json");
+                    v.put(MediaStore.Downloads.RELATIVE_PATH, "Download/Caisse");
+                    target = cr.insert(table, v);
+                }
+                try (OutputStream os = cr.openOutputStream(target, "wt")) { os.write(json.getBytes("UTF-8")); }
+            } catch (Exception ignored) { /* sauvegarde de confort : jamais bloquante */ }
+        }
+
         @JavascriptInterface
         public void saveFile(String base64, String name, String mime, boolean share) {
             try {
