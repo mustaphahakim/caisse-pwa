@@ -465,6 +465,15 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     white-space: nowrap;
   }
   .toast.show { opacity: 1; }
+  /* ── Arabe / RTL ── */
+  html[lang="ar"] body, html[lang="ar"] button, html[lang="ar"] input, html[lang="ar"] textarea, html[lang="ar"] select {
+    font-family: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Noto Naskh Arabic', system-ui, sans-serif;
+  }
+  html[lang="ar"] * { letter-spacing: 0 !important; text-transform: none !important; }
+  html[dir="rtl"] th, html[dir="rtl"] td { text-align: right; }
+  html[dir="rtl"] .montant-cell, html[dir="rtl"] .solde-cell, html[dir="rtl"] .num-cell,
+  html[dir="rtl"] .stat-value, html[dir="rtl"] .solde-display { direction: ltr; unicode-bidi: isolate; text-align: right; }
+  html[dir="rtl"] input[type="number"] { direction: ltr; text-align: right; }
 </style>
 </head>
 <body>
@@ -492,6 +501,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   <div class="header-top">
     <h1>📊 CAISSE</h1>
     <button class="btn-export" onclick="exportExcel()">📥 Excel</button>
+    <button class="btn-reset" id="btnLang" onclick="toggleLang()" style="font-weight:700">العربية</button>
     <button class="btn-reset" onclick="resetAll()">🗑 Reset</button>
   </div>
   <div class="solde-label">Solde actuel</div>
@@ -511,7 +521,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
 </div>
 
 <div id="backupBanner" style="display:none;margin:0 16px 10px;padding:10px 12px;border:1px solid rgba(255,176,32,0.5);border-radius:8px;color:#ffb020;font-size:12px;line-height:1.6">
-  ⚠ Dernière sauvegarde complète il y a <strong id="backupDays">0</strong> jours. Pensez à sauvegarder (photos incluses) et à envoyer le fichier à un autre endroit (WhatsApp, e-mail, ordinateur).
+  <span id="backupText"></span>
   <button class="btn-set" style="margin-top:8px;width:100%" onclick="exportBackup()">💾 Sauvegarder maintenant</button>
 </div>
 
@@ -655,7 +665,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   </div>
 </div>
 
-<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v8 — sauvegarde auto</div>
+<div style="text-align:center;color:var(--text2);font-size:11px;margin:18px 0 0;font-family:'IBM Plex Mono',monospace">Caisse · v8 — langue + sauvegarde auto</div>
 
 <div class="toast" id="toast"></div>
 
@@ -700,7 +710,12 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     }
     const due = data && data.operations.length && last && (Date.now() - last > BACKUP_EVERY_MS);
     el.style.display = due ? '' : 'none';
-    if (due) document.getElementById('backupDays').textContent = Math.floor((Date.now() - last) / 86400000);
+    if (due) {
+      const d = Math.floor((Date.now() - last) / 86400000);
+      document.getElementById('backupText').innerHTML = LANG === 'ar'
+        ? '⚠ آخر نسخة احتياطية كاملة منذ <strong>' + d + '</strong> يومًا. يُنصح بحفظ نسخة (مع الصور) وإرسالها إلى مكان آخر (واتساب، البريد، الحاسوب).'
+        : '⚠ Dernière sauvegarde complète il y a <strong>' + d + '</strong> jours. Pensez à sauvegarder (photos incluses) et à envoyer le fichier à un autre endroit (WhatsApp, e-mail, ordinateur).';
+    }
   }
 
   function esc(s) {
@@ -817,7 +832,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const op = data.operations.find(o => o.id === opId);
     const list = await getPieces(opId).catch(() => []);
     document.getElementById('viewerTitle').textContent =
-      'Pièces — ' + (op ? op.operation : '') + ' (' + list.length + ')';
+      t('Pièces') + ' — ' + (op ? op.operation : '') + ' (' + list.length + ')';
     const body = document.getElementById('viewerBody');
     body.innerHTML = list.length ? list.map((p, i) => `
       <div class="viewer-item">
@@ -833,7 +848,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function closeViewer() { document.getElementById('viewer').classList.remove('show'); }
 
   async function removePiece(opId, pieceId) {
-    if (!confirm('Supprimer cette pièce ?')) return;
+    if (!askConfirm('Supprimer cette pièce ?')) return;
     await deletePiece(pieceId);
     const op = data.operations.find(o => o.id === opId);
     if (op) op.nbPieces = Math.max(0, (op.nbPieces || 1) - 1);
@@ -943,7 +958,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   function deleteOperation(id) {
-    if (!confirm('Supprimer cette opération (et ses pièces justificatives) ?')) return;
+    if (!askConfirm('Supprimer cette opération (et ses pièces justificatives) ?')) return;
     deletePieces(id).catch(() => {});
     data.operations = data.operations.filter(op => op.id !== id);
     recalcSoldes();
@@ -1002,7 +1017,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   }
 
   function resetAll() {
-    if (!confirm('Réinitialiser toutes les données ?')) return;
+    if (!askConfirm('Réinitialiser toutes les données ?')) return;
     data = { soldeInitial: 0, operations: [] };
     clearPieces().catch(() => {});
     pending = []; renderPending();
@@ -1157,7 +1172,9 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   function openExportDlg(nPhotos) {
     const mo = (exportFile.size / 1048576).toFixed(1);
     document.getElementById('exportInfo').textContent =
-      exportFile.name + ' — ' + data.operations.length + ' opération(s), ' + nPhotos + ' photo(s), ' + mo + ' Mo';
+      LANG === 'ar'
+        ? exportFile.name + ' — ' + data.operations.length + ' عملية، ' + nPhotos + ' صورة، ' + mo + ' ميغابايت'
+        : exportFile.name + ' — ' + data.operations.length + ' opération(s), ' + nPhotos + ' photo(s), ' + mo + ' Mo';
     const canShare = !!(navigator.canShare && navigator.canShare({ files: [exportFile] }));
     document.getElementById('btnShare').style.display = canShare ? '' : 'none';
     document.getElementById('exportErr').style.display = 'none';
@@ -1252,7 +1269,7 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     try {
       const obj = JSON.parse(await file.text());
       if (!obj || !obj.data || !Array.isArray(obj.data.operations)) throw new Error('format');
-      if (!confirm('Remplacer toutes les données actuelles par cette sauvegarde (' + obj.data.operations.length + ' opérations) ?')) return;
+      if (!askConfirm('Remplacer toutes les données actuelles par cette sauvegarde (' + obj.data.operations.length + ' opérations) ?')) return;
       if (!obj.auto) await clearPieces();   // la sauvegarde auto ne contient pas de photos : on garde celles de l'appareil
       for (const p of (obj.pieces || [])) await putPiece(p);
       data = obj.data;
@@ -1260,6 +1277,99 @@ https://github.com/nodeca/pako/blob/main/LICENSE
       showToast('Sauvegarde restaurée ✓');
     } catch (e) { showToast('Fichier de sauvegarde invalide'); }
   }
+
+  // ── Langue : français / عربي ───────────────────────────
+  const AR = {
+    '📊 CAISSE':'📊 الصندوق','📥 Excel':'📥 إكسل','🗑 Reset':'🗑 مسح','Solde actuel':'الرصيد الحالي','Solde initial':'الرصيد الابتدائي','Définir':'تحديد',
+    '💾 Sauvegarde':'💾 نسخ احتياطي','📂 Restaurer':'📂 استعادة','💾 Sauvegarder maintenant':'💾 احفظ نسخة الآن',
+    'Entrées':'المداخيل','Sorties':'المصاريف','Opérations':'العمليات','Nouvelle opération':'عملية جديدة',
+    '＋ Crédit':'＋ دائن','－ Débit':'－ مدين','CRÉDIT':'دائن','DÉBIT':'مدين','Montant (DA)':'المبلغ (دج)','Opération':'العملية','Justification':'التبرير',
+    'Pièces justificatives (photos)':'الوثائق المبررة (صور)','📷 Prendre une photo':'📷 التقاط صورة','🖼 Galerie':'🖼 المعرض',
+    "Ajouter l'opération":'إضافة العملية','Historique':'السجل','N°':'الرقم','Date & Heure':'التاريخ والساعة','Solde Avant':'الرصيد قبل',
+    'Montant':'المبلغ','Pièces':'الوثائق','Nouveau Solde':'الرصيد الجديد','Aucune opération enregistrée':'لا توجد عمليات مسجلة',
+    'Pièces justificatives':'الوثائق المبررة','✕ Fermer':'✕ إغلاق','Fermer':'إغلاق','Annuler':'إلغاء',
+    "✏️ Modifier l'opération":'✏️ تعديل العملية','✔ Enregistrer':'✔ حفظ',
+    'Les photos sont conservées. Les soldes de toutes les opérations suivantes sont recalculés.':'الصور محفوظة. تُعاد أرصدة جميع العمليات اللاحقة تلقائيًا.',
+    '📥 Fichier Excel prêt':'📥 ملف إكسل جاهز','⬇ Télécharger le fichier':'⬇ تنزيل الملف','📤 Partager directement':'📤 مشاركة مباشرة',
+    'Après le téléchargement : ouvrez':'بعد التنزيل: افتح','Fichiers › Téléchargements':'الملفات › التنزيلات',
+    ', appui long sur le fichier ›':'، اضغط مطولًا على الملف ›','Partager':'مشاركة','(WhatsApp, e-mail…).':'(واتساب، البريد…).',
+    'Installer comme application :':'تثبيت كتطبيق:','Appuyez sur':'اضغط على','⎋ Partager':'⎋ مشاركة','puis':'ثم','"Sur l\'écran d\'accueil"':'«إضافة إلى الشاشة الرئيسية»',
+    "⚠ Installez d'abord, puis saisissez vos données : Safari et l'app installée ne partagent pas leurs données.":'⚠ ثبّت التطبيق أولًا ثم أدخل بياناتك: Safari والتطبيق المثبّت لا يتشاركان البيانات.',
+    'JavaScript ne fonctionne pas dans cet affichage.':'JavaScript لا يعمل في هذا العرض.','Les boutons ne feront rien. Ouvrez cette page dans':'الأزرار لن تعمل. افتح هذه الصفحة في',
+    'via un lien':'عبر رابط','(pas depuis Fichiers, WhatsApp ou un aperçu).':'(وليس من الملفات أو واتساب أو المعاينة).',
+    'Caisse · v8 — langue + sauvegarde auto':'الصندوق · v8 — اللغة + نسخ احتياطي تلقائي',
+    'Montant...':'المبلغ...','Ex: Fournitures':'مثال: لوازم','Référence, détails...':'المرجع، التفاصيل...','Modifier':'تعديل','Ajouter une photo':'إضافة صورة','Supprimer':'حذف',
+    '🔒 Verrouillage par empreinte':'🔒 القفل ببصمة الإصبع','ACTIVÉ ✓':'مفعّل ✓','désactivé':'معطّل','🔒 Empreinte non configurée sur ce téléphone':'🔒 لا توجد بصمة مسجّلة في هذا الهاتف',
+    'Image non lisible':'تعذّرت قراءة الصورة',"Erreur d'enregistrement des photos":'خطأ في حفظ الصور','Supprimer cette pièce ?':'حذف هذه الوثيقة؟',
+    'Entrez un montant valide':'أدخل مبلغًا صحيحًا','Solde initial défini':'تم تحديد الرصيد الابتدائي','Entrez une opération':'أدخل اسم العملية',
+    'Opération ajoutée (photos non enregistrées)':'أُضيفت العملية (لم تُحفظ الصور)','Opération ajoutée ✓':'أُضيفت العملية ✓',
+    'Supprimer cette opération (et ses pièces justificatives) ?':'حذف هذه العملية (ووثائقها المبررة)؟','Opération supprimée':'حُذفت العملية',
+    'Opération modifiée ✓ (soldes recalculés)':'عُدّلت العملية ✓ (أُعيد حساب الأرصدة)','Réinitialiser toutes les données ?':'مسح جميع البيانات؟',
+    'Données réinitialisées':'تم مسح البيانات','Aucune opération à exporter':'لا توجد عمليات للتصدير',
+    'Bibliothèque Excel introuvable : rechargez la page':'مكتبة إكسل غير موجودة: أعد تحميل الصفحة','Préparation du fichier…':'جارٍ تجهيز الملف…',
+    "Échec de l'enregistrement":'فشل الحفظ','Fichier enregistré dans Téléchargements ✓':'تم حفظ الملف في التنزيلات ✓',
+    'Sauvegarde prête ✓':'النسخة الاحتياطية جاهزة ✓','Sauvegarde exportée ✓':'تم تصدير النسخة الاحتياطية ✓','Échec de la sauvegarde':'فشل النسخ الاحتياطي',
+    'Sauvegarde restaurée ✓':'تمت الاستعادة ✓','Fichier de sauvegarde invalide':'ملف النسخة الاحتياطية غير صالح',
+    "Ajoutez d'abord une empreinte dans les paramètres du téléphone":'أضف بصمة أولًا من إعدادات الهاتف'
+  };
+  const AR_RULES = [
+    [/^(\d+) pièce\(s\) ajoutée\(s\) ✓$/, m => m[1] + ' وثيقة أُضيفت ✓'],
+    [/^Erreur Excel : (.*)$/, m => 'خطأ إكسل : ' + m[1]],
+    [/^Remplacer toutes les données actuelles par cette sauvegarde \((\d+) opérations\) \?$/, m => 'استبدال كل البيانات الحالية بهذه النسخة (' + m[1] + ' عملية)؟']
+  ];
+  let LANG = 'fr';
+  try { LANG = localStorage.getItem('caisse_lang') === 'ar' ? 'ar' : 'fr'; } catch (e) {}
+
+  function t(fr) { return LANG === 'ar' && AR[fr] ? AR[fr] : fr; }
+  function tr(msg) {
+    if (LANG !== 'ar') return msg;
+    if (AR[msg]) return AR[msg];
+    for (const [re, f] of AR_RULES) { const m = re.exec(msg); if (m) return f(m); }
+    return msg;
+  }
+  function askConfirm(msg) { return confirm(tr(msg)); }
+
+  const origText = new WeakMap();
+  function i18nNode(root) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let n;
+    while ((n = w.nextNode())) {
+      const tag = n.parentNode && n.parentNode.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+      let o = origText.get(n);
+      if (o === undefined) { o = n.nodeValue; origText.set(n, o); }
+      const key = o.replace(/\s+/g, ' ').trim();
+      if (!key || !AR[key]) { if (n.nodeValue !== o) n.nodeValue = o; continue; }
+      n.nodeValue = LANG === 'ar' ? o.replace(o.trim(), AR[key]) : o;
+    }
+    root.querySelectorAll('[placeholder],[title]').forEach(el => {
+      ['placeholder', 'title'].forEach(a => {
+        if (!el.hasAttribute(a)) return;
+        const k = 'fr' + a;
+        if (el.dataset[k] === undefined) el.dataset[k] = el.getAttribute(a);
+        const o = el.dataset[k];
+        el.setAttribute(a, LANG === 'ar' && AR[o] ? AR[o] : o);
+      });
+    });
+  }
+  function applyLang() {
+    document.documentElement.lang = LANG;
+    document.documentElement.dir = LANG === 'ar' ? 'rtl' : 'ltr';
+    i18nNode(document.body);
+    document.getElementById('btnLang').textContent = LANG === 'ar' ? 'Français' : 'العربية';
+    try { if (window.CaisseAndroid && window.CaisseAndroid.setLang) window.CaisseAndroid.setLang(LANG); } catch (e) {}
+  }
+  function toggleLang() {
+    LANG = LANG === 'ar' ? 'fr' : 'ar';
+    try { localStorage.setItem('caisse_lang', LANG); } catch (e) {}
+    applyLang();
+    refreshLockUI();
+    refreshBackupBanner();
+    if (document.getElementById('viewer').classList.contains('show')) closeViewer();
+  }
+  // Le tableau est reconstruit à chaque rendu : on le retraduit aussitôt
+  const _render = render;
+  render = function () { _render(); i18nNode(document.getElementById('tableBody')); };
 
   // ── Verrouillage par empreinte (pont Android) ──
   function refreshLockUI() {
@@ -1269,8 +1379,8 @@ https://github.com/nodeca/pako/blob/main/LICENSE
     const avail = window.CaisseAndroid.lockAvailable();
     const on = window.CaisseAndroid.isLockEnabled();
     document.getElementById('btnLock').textContent = !avail
-      ? '🔒 Empreinte non configurée sur ce téléphone'
-      : '🔒 Verrouillage par empreinte : ' + (on ? 'ACTIVÉ ✓' : 'désactivé');
+      ? t('🔒 Empreinte non configurée sur ce téléphone')
+      : t('🔒 Verrouillage par empreinte') + ' : ' + t(on ? 'ACTIVÉ ✓' : 'désactivé');
   }
   function toggleLock() {
     if (!window.CaisseAndroid) return;
@@ -1284,12 +1394,13 @@ https://github.com/nodeca/pako/blob/main/LICENSE
   // ── Toast ─────────────────────────────────────────────
   function showToast(msg) {
     const t = document.getElementById('toast');
-    t.textContent = msg;
+    t.textContent = tr(msg);
     t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 2500);
   }
 
   render();
+  applyLang();
   refreshLockUI();
   refreshBackupBanner();
 

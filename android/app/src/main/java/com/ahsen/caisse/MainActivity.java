@@ -49,6 +49,9 @@ public class MainActivity extends AppCompatActivity {
     // ── Verrouillage par empreinte ──
     private SharedPreferences prefs;
     private View lockView;
+    private TextView lockText;
+    private Button lockBtn;
+    private boolean ar() { return "ar".equals(prefs.getString("lang", "fr")); }
     private boolean locked = false, skipNextLock = false, prompting = false;
     private long stoppedAt = 0;
     private static final long RELOCK_MS = 20_000;
@@ -71,9 +74,11 @@ public class MainActivity extends AppCompatActivity {
         l.setBackgroundColor(Color.parseColor("#0F1115"));
         l.setClickable(true);
         TextView t = new TextView(this);
+        lockText = t;
         t.setText("🔒\nCaisse verrouillée");
         t.setTextColor(Color.WHITE); t.setTextSize(22); t.setGravity(Gravity.CENTER);
         Button b = new Button(this);
+        lockBtn = b;
         b.setText("Déverrouiller par empreinte");
         b.setOnClickListener(v -> authenticate());
         l.addView(t);
@@ -87,17 +92,23 @@ public class MainActivity extends AppCompatActivity {
         if (!lockWanted()) return;
         locked = true;
         lockView.setVisibility(View.VISIBLE);
+        refreshLockTexts();
         authenticate();
+    }
+
+    private void refreshLockTexts() {
+        lockText.setText(ar() ? "🔒\nالصندوق مقفل" : "🔒\nCaisse verrouillée");
+        lockBtn.setText(ar() ? "فتح القفل بالبصمة" : "Déverrouiller par empreinte");
     }
 
     private void authenticate() {
         if (prompting) return;
         prompting = true;
         BiometricPrompt.PromptInfo.Builder pi = new BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Caisse — Institut Ahsen Bouderbala")
-                .setSubtitle("Posez votre doigt sur le capteur")
+                .setTitle(ar() ? "الصندوق — معهد أحسن بودربالة" : "Caisse — Institut Ahsen Bouderbala")
+                .setSubtitle(ar() ? "ضع إصبعك على المستشعر" : "Posez votre doigt sur le capteur")
                 .setAllowedAuthenticators(authenticators());
-        if (Build.VERSION.SDK_INT < 30) pi.setNegativeButtonText("Annuler");
+        if (Build.VERSION.SDK_INT < 30) pi.setNegativeButtonText(ar() ? "إلغاء" : "Annuler");
         BiometricPrompt prompt = new BiometricPrompt(this, ContextCompat.getMainExecutor(this),
                 new BiometricPrompt.AuthenticationCallback() {
                     @Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult r) {
@@ -163,7 +174,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         web.loadUrl("https://appassets.androidplatform.net/assets/index.html");
-        if (lockWanted()) { locked = true; lockView.setVisibility(View.VISIBLE); web.post(this::authenticate); }
+        if (lockWanted()) { locked = true; lockView.setVisibility(View.VISIBLE); refreshLockTexts(); web.post(this::authenticate); }
     }
 
     private void launchChooser(WebChromeClient.FileChooserParams p) {
@@ -232,6 +243,7 @@ public class MainActivity extends AppCompatActivity {
     private class Bridge {
         @JavascriptInterface public boolean lockAvailable() { return biometricAvailable(); }
         @JavascriptInterface public boolean isLockEnabled() { return prefs.getBoolean("lock_enabled", true) && biometricAvailable(); }
+        @JavascriptInterface public void setLang(String l) { prefs.edit().putString("lang", "ar".equals(l) ? "ar" : "fr").apply(); }
         @JavascriptInterface public void setLockEnabled(boolean on) { prefs.edit().putBoolean("lock_enabled", on).apply(); }
 
         /** Sauvegarde automatique : un seul fichier Download/Caisse/Caisse_auto.json, remplacé à chaque fois. */
